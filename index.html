@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get LocSim</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    max-width: 480px; margin: 15vh auto 0; padding: 0 20px; text-align: center;
+  }
+  h1 { font-size: 1.3rem; margin-bottom: .3em; }
+  p.hint { color: #888; font-size: .9rem; }
+  button {
+    font-size: 1rem; padding: .8em 1.6em; border-radius: 10px; border: none;
+    background: #0a84ff; color: white; cursor: pointer; margin-top: 1em;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { margin-top: 1.2em; font-size: .95rem; }
+  #status.error { color: #ff453a; }
+  #status.ok { color: #30d158; }
+</style>
+</head>
+<body>
+  <h1>LocSim</h1>
+  <p class="hint">This link works once. If the button below doesn't work, ask for a new link &mdash; don't forward this page.</p>
+  <button id="go">Download LocSim.ipa</button>
+  <div id="status"></div>
+
+<script>
+// The "spoof" Supabase project (nkuutpzgivrhscsckqbr). This key is meant to be public --
+// it's the anon/publishable key, and claim_install_link is the only thing it can call.
+const SUPABASE_URL = "https://nkuutpzgivrhscsckqbr.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_ft4rSU-fckml5uTr3Dv1KA_Q9osLsAK";
+
+const token = new URLSearchParams(location.search).get("t");
+const statusEl = document.getElementById("status");
+const button = document.getElementById("go");
+
+function setStatus(msg, kind) {
+  statusEl.textContent = msg;
+  statusEl.className = kind || "";
+}
+
+if (!token) {
+  setStatus("No install token in this link. Ask for the full link again.", "error");
+  button.disabled = true;
+}
+
+button.addEventListener("click", async () => {
+  button.disabled = true;
+  setStatus("Checking link…");
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/claim_install_link`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ p_token: token }),
+    });
+    const body = await res.json();
+
+    if (!body.ok) {
+      setStatus(body.reason || "This link isn't valid anymore.", "error");
+      return;
+    }
+
+    setStatus("Starting download…", "ok");
+    const bytes = Uint8Array.from(atob(body.data), c => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = body.filename || "LocSim.ipa";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+    setStatus("Downloaded. Open it with AltStore/AltServer to install.", "ok");
+  } catch (err) {
+    setStatus("Couldn't reach the server. Check your connection and try again.", "error");
+    button.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
